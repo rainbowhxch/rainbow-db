@@ -1,6 +1,6 @@
 CPP_SOURCES = $(wildcard src/*.cpp)
 CPP_HEADERS = $(wildcard inc/*.h)
-OBJ = ${CPP_SOURCES:.c=.o}
+OBJ = ${CPP_SOURCES:.cpp=.o}
 
 CC = g++
 GDB = gdb
@@ -16,3 +16,6 @@ rainbow-db.exe: $(OBJ)
 clean:
 	rm -rf src/*.o
 	rm -rf *.exe
+
+clean-db:
+	rm -rf *.db
