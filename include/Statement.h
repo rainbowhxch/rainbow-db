@@ -5,7 +5,7 @@
 
 enum class StatementType : unsigned int
 {
-    EXIT, INSERT, SELECT
+    EXIT = 0, INSERT, SELECT, UPDATE, REMOVE
 };
 
 class Statement
@@ -13,11 +13,11 @@ class Statement
 public:
     void set_type(StatementType type);
     StatementType get_type();
-    void set_row_to_insert(Row *row);
-    Row *get_row_to_insert();
+    void set_row(Row *row);
+    Row *get_row();
 private:
     StatementType type;
-    Row *row_to_insert;
+    Row *row;
 };
 
 #endif /* _STATEMENT_H_ */

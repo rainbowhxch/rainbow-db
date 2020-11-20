@@ -1,11 +1,8 @@
 #ifndef _RAINBOWDB_H_
 #define _RAINBOWDB_H_
 
-#include <cstdio>
-#include "Cursor.h"
 #include "Parser.h"
 #include "Actuator.h"
-#include "Pager.h"
 
 class RainbowDB
 {
