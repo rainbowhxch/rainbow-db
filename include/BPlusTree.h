@@ -82,16 +82,18 @@ private:
     string file_path;
     FILE *db_fd;
     Header header;
-    inline Index *internal_begin(InternalNode &node);
-    inline Index *internal_end(InternalNode &node);
-    inline Record *leaf_begin(LeafNode &node);
-    inline Record *leaf_end(LeafNode &node);
+    /* TODO: Need to reference from pager(not implemented yet) */
     template<typename T>
     size_t swap_in(T *page, off_t offset);
     template<typename T>
     size_t swap_out(T *page, off_t offset);
     off_t alloc(LeafNode *node);
     off_t alloc(InternalNode *node);
+    /* ------------------------------------------------------- */
+    inline Index *internal_begin(InternalNode &node);
+    inline Index *internal_end(InternalNode &node);
+    inline Record *leaf_begin(LeafNode &node);
+    inline Record *leaf_end(LeafNode &node);
     Index *find_pos_in_node(InternalNode &node, const uint32_t key);
     Record *find_pos_in_node(LeafNode &node, const uint32_t key);
     off_t search_leaf(const uint32_t key);
