@@ -10,77 +10,19 @@ BPlusTree::BPlusTree(string file_path)
     }
     if (swap_in(&header, OFFSIZE_OF_HEADER) == 0) {
         LeafNode root;
-        root.prev_leaf = root.next_leaf = root.parent = 0;
-        header.meta.height = 0;
-        header.meta.file_length = SIZE_OF_HEADER;
-        header.meta.root_offset = alloc(&root);
-        header.meta.first_leaf_offset = header.meta.root_offset;
+        header = Header(alloc(root));
         swap_out(&header, OFFSIZE_OF_HEADER);
         swap_out(&root, header.meta.root_offset);
     }
 }
 
-template<typename T>
-size_t BPlusTree::swap_in(T *page, off_t offset)
-{
-    db_fd = fopen(file_path.c_str(), "rb+");
-    fseek(db_fd, offset, SEEK_SET);
-    size_t rsize = fread(page, sizeof(T), 1, db_fd);
-    fclose(db_fd);
-    return rsize;
-}
-
-template<typename T>
-size_t BPlusTree::swap_out(T *page, off_t offset)
-{
-    db_fd = fopen(file_path.c_str(), "rb+");
-    fseek(db_fd, offset, SEEK_SET);
-    size_t wsize = fwrite(page, sizeof(T), 1, db_fd);
-    fclose(db_fd);
-    return wsize;
-}
-
-off_t BPlusTree::alloc(LeafNode *node)
-{
-    node->num_of_records = 0;
-    off_t file_length = header.meta.file_length;
-    header.meta.file_length += sizeof(LeafNode);
-    return file_length;
-}
-
-off_t BPlusTree::alloc(InternalNode *node)
-{
-    node->num_of_index = 1;
-    off_t file_length = header.meta.file_length;
-    header.meta.file_length += sizeof(InternalNode);
-    return file_length;
-}
-
-BPlusTree::Index *BPlusTree::find_pos_in_node(InternalNode &node, const uint32_t key)
-{
-    Index *next = upper_bound(internal_begin(node), internal_end(node)-1, key,
-            [](const uint32_t key, const Index &index){
-                return index.key < key;
-            });
-    return next;
-}
-
-BPlusTree::Record *BPlusTree::find_pos_in_node(LeafNode &node, const uint32_t key)
-{
-    Record *record = lower_bound(leaf_begin(node), leaf_end(node), key,
-            [](const Record &record, const uint32_t key){
-                return record.key < key;
-            });
-    return record;
-}
-
-bool BPlusTree::search(const uint32_t key, Row *row)
+bool BPlusTree::search(const uint32_t key, Row &row)
 {
     LeafNode leaf;
     swap_in(&leaf, search_leaf(key));
-    Record *record = find_pos_in_node(leaf, key);
-    if (record != leaf_end(leaf) && record->key == key) {
-        row->deserialize_row(record->row);
+    Record *record = leaf.find_record(key);
+    if (record != leaf.end() && record->key == key) {
+        row.deserialize_row(record->row);
         return true;
     } else {
         return false;
@@ -94,7 +36,7 @@ off_t BPlusTree::search_leaf(const uint32_t key)
     while (height >= 1) {
         InternalNode cur_node;
         swap_in(&cur_node, cur_off);
-        Index *next = find_pos_in_node(cur_node, key);
+        Index *next = cur_node.find_index(key);
         cur_off = next->child;
         height--;
     }
@@ -107,10 +49,10 @@ bool BPlusTree::remove(const uint32_t key)
     off_t leaf_off = search_leaf(key);
     LeafNode leaf;
     swap_in(&leaf, leaf_off);
-    Record *record = find_pos_in_node(leaf, key);
-    if (record == leaf_end(leaf) || record->key != key)
+    Record *record = leaf.find_record(key);
+    if (record == leaf.end() || record->key != key)
         return false;
-    std::copy(record+1, leaf_end(leaf), record);
+    std::copy(record+1, leaf.end(), record);
     leaf.num_of_records--;
 
     int min_records_cnt = header.meta.root_offset == leaf_off ? 0 : MAX_NUM_OF_RECORD/2;
@@ -126,15 +68,15 @@ bool BPlusTree::remove(const uint32_t key)
             InternalNode parent;
             swap_in(&parent, leaf.parent);
             uint32_t need_removed_key;
-            if (leaf.prev_leaf != 0 && leaf_off == (internal_end(parent)-1)->child) { /* merge prev with leaf */
+            if (leaf.prev_leaf != 0 && leaf_off == (parent.end()-1)->child) { /* merge prev with leaf */
                 LeafNode prev;
-                need_removed_key = leaf_begin(leaf)->key;
+                need_removed_key = leaf.begin()->key;
                 swap_in(&prev, leaf.prev_leaf);
                 merge_adjacent_leaf(prev, leaf);
                 swap_out(&prev, leaf.prev_leaf);
-            } else if (leaf.next_leaf != 0 && leaf_off != (internal_end(parent)-1)->child) { /* merge leaf with next */
+            } else if (leaf.next_leaf != 0 && leaf_off != (parent.end()-1)->child) { /* merge leaf with next */
                 LeafNode next;
-                need_removed_key = leaf_begin(next)->key;
+                need_removed_key = next.begin()->key;
                 swap_in(&next, leaf.next_leaf);
                 merge_adjacent_leaf(leaf, next);
                 swap_out(&next, leaf.next_leaf);
@@ -152,18 +94,18 @@ bool BPlusTree::remove(const uint32_t key)
 
 void BPlusTree::remove_index(off_t internal_off, InternalNode &internal, uint32_t need_removed_key, bool children_is_leaf)
 {
-    Index *index = lower_bound(internal_begin(internal), internal_end(internal), need_removed_key,
+    Index *index = lower_bound(internal.begin(), internal.end(), need_removed_key,
             [](const Index &index, const uint32_t key){
                 return index.key < key;
             });
-    if (index != internal_end(internal)) {
+    if (index != internal.end()) {
         (index+1)->child = index->child;
-        std::copy(index+1, internal_end(internal), index);
+        std::copy(index+1, internal.end(), index);
     }
     internal.num_of_index--;
 
     if (internal.num_of_index == 1 && header.meta.root_offset == internal_off) {
-        header.meta.root_offset = internal_begin(internal)->child;
+        header.meta.root_offset = internal.begin()->child;
         header.meta.height--;
         swap_out(&header, OFFSIZE_OF_HEADER);
         /* TODO: unalloc root internal node */
@@ -182,15 +124,15 @@ void BPlusTree::remove_index(off_t internal_off, InternalNode &internal, uint32_
             InternalNode parent;
             swap_in(&parent, internal.parent);
             uint32_t need_removed_key;
-            if (internal_off == (internal_end(parent)-1)->child) { /* merge prev with internal */
+            if (internal_off == (parent.end()-1)->child) { /* merge prev with internal */
                 InternalNode prev;
-                need_removed_key = internal_begin(internal)->key;
+                need_removed_key = internal.begin()->key;
                 swap_in(&prev, internal.prev_interval);
                 merge_adjacent_internal(prev, internal, children_is_leaf);
                 swap_out(&prev, internal.prev_interval);
             } else { /* merge internal with next */
                 InternalNode next;
-                need_removed_key = internal_begin(next)->key;
+                need_removed_key =next.begin()->key;
                 swap_in(&next, internal.next_interval);
                 merge_adjacent_internal(next, internal, children_is_leaf);
                 swap_out(&next, internal.next_interval);
@@ -206,7 +148,7 @@ void BPlusTree::remove_index(off_t internal_off, InternalNode &internal, uint32_
 
 void BPlusTree::merge_adjacent_leaf(LeafNode &des, LeafNode &src)
 {
-    std::copy(leaf_begin(src), leaf_end(src), leaf_end(des));
+    std::copy(src.begin(), src.end(), des.end());
     des.num_of_records += src.num_of_records;
     des.next_leaf = src.next_leaf;
     if (src.next_leaf != 0) {
@@ -220,7 +162,7 @@ void BPlusTree::merge_adjacent_leaf(LeafNode &des, LeafNode &src)
 
 void BPlusTree::merge_adjacent_internal(InternalNode &des, InternalNode &src, bool children_is_leaf)
 {
-    std::copy(internal_begin(src), internal_end(src), internal_end(des));
+    std::copy(src.begin(), src.end(), des.end());
     des.num_of_index += src.num_of_index;
     des.next_interval = src.next_interval;
     if (src.next_interval != 0) {
@@ -242,19 +184,19 @@ bool BPlusTree::borrow_record(LeafNode &node, off_t borrowed_leaf_off)
     Record *where_to_put, *where_be_borrowed;
     if (borrowed_node.num_of_records != MAX_NUM_OF_RECORD/2) {
         if (node.prev_leaf == borrowed_leaf_off) { /* borrowed prev leaf */
-            where_to_put = leaf_begin(node);
-            where_be_borrowed = leaf_end(borrowed_node)-1;
-            change_internal_key(borrowed_node.parent, leaf_begin(borrowed_node)->key, where_be_borrowed->key, true);
+            where_to_put = node.begin();
+            where_be_borrowed = borrowed_node.end()-1;
+            change_internal_key(borrowed_node.parent, borrowed_node.begin()->key, where_be_borrowed->key, true);
         } else { /* borrowed next leaf */
-            where_to_put = leaf_end(node);
-            where_be_borrowed = leaf_begin(borrowed_node);
-            change_internal_key(node.parent, leaf_begin(node)->key, (where_be_borrowed+1)->key, true);
+            where_to_put = node.end();
+            where_be_borrowed = borrowed_node.begin();
+            change_internal_key(node.parent, node.begin()->key, (where_be_borrowed+1)->key, true);
         }
 
-        std::copy_backward(where_to_put, leaf_end(node), leaf_end(node)+1);
+        std::copy_backward(where_to_put, node.end(), node.end()+1);
         *where_to_put = *where_be_borrowed;
         node.num_of_records++;
-        std::copy(where_be_borrowed+1, leaf_end(borrowed_node), where_be_borrowed);
+        std::copy(where_be_borrowed+1, borrowed_node.end(), where_be_borrowed);
         borrowed_node.num_of_records--;
         swap_out(&borrowed_node, borrowed_leaf_off);
 
@@ -274,21 +216,21 @@ bool BPlusTree::borrow_index(InternalNode &node, off_t borrowed_internal_off, bo
     if (borrowed_node.num_of_index != MAX_NUM_OF_INDEX/2) {
         if (node.prev_interval == borrowed_internal_off) { /* borrowed prev leaf */
             need_updated_parent_off = borrowed_node.next_interval;
-            where_to_put = internal_begin(node);
-            where_be_borrowed = internal_end(borrowed_node)-1;
-            change_internal_key(borrowed_node.parent, internal_begin(borrowed_node)->key, (where_be_borrowed-1)->key, true);
+            where_to_put = node.begin();
+            where_be_borrowed = borrowed_node.end()-1;
+            change_internal_key(borrowed_node.parent, borrowed_node.begin()->key, (where_be_borrowed-1)->key, true);
         } else { /* borrowed next leaf */
             need_updated_parent_off = borrowed_node.prev_interval;
-            where_to_put = internal_end(node);
-            where_be_borrowed = internal_begin(borrowed_node);
-            change_internal_key(node.parent, (internal_end(node)-1)->key, where_be_borrowed->key, false);
+            where_to_put = node.end();
+            where_be_borrowed = borrowed_node.begin();
+            change_internal_key(node.parent, (node.end()-1)->key, where_be_borrowed->key, false);
         }
 
-        std::copy_backward(where_to_put, internal_begin(node), internal_end(node)+1);
+        std::copy_backward(where_to_put, node.begin(), node.end()+1);
         *where_to_put = *where_be_borrowed;
         node.num_of_index++;
         update_parent(where_be_borrowed, where_be_borrowed+1, need_updated_parent_off, children_is_leaf);
-        std::copy(where_be_borrowed+1, internal_end(borrowed_node), where_be_borrowed);
+        std::copy(where_be_borrowed+1, borrowed_node.end(), where_be_borrowed);
         borrowed_node.num_of_index--;
         swap_out(&borrowed_node, borrowed_internal_off);
 
@@ -304,26 +246,26 @@ void BPlusTree::change_internal_key(off_t internal_off, uint32_t old_key, uint32
     swap_in(&internal, internal_off);
     Index *index;
     if (is_pass_old_key) {
-        index = find_pos_in_node(internal, old_key);
+        index = internal.find_index(old_key);
     } else {
-        index = lower_bound(internal_begin(internal), internal_end(internal)-1, old_key,
+        index = lower_bound(internal.begin(), internal.end()-1, old_key,
                 [](const Index &index, const uint32_t key){
                     return index.key < key;
                 });
     }
     index->key = new_key;
     swap_out(&internal, internal_off);
-    if (index == internal_end(internal)-1)
+    if (index == internal.end()-1)
         change_internal_key(internal.parent, old_key, new_key, true);
 }
 
-bool BPlusTree::insert(const uint32_t key, Row *row)
+bool BPlusTree::insert(const uint32_t key, Row row)
 {
     off_t searched_leaf_off = search_leaf(key);
     LeafNode searched_leaf;
     swap_in(&searched_leaf, searched_leaf_off);
-    Record *record = find_pos_in_node(searched_leaf, key);
-    if (record != leaf_end(searched_leaf))
+    Record *record = searched_leaf.find_record(key);
+    if (record != searched_leaf.end())
         return false;
     if (searched_leaf.num_of_records == MAX_NUM_OF_RECORD) {
         LeafNode next_leaf;
@@ -339,7 +281,7 @@ bool BPlusTree::insert(const uint32_t key, Row *row)
     return true;
 }
 
-void BPlusTree::split_node(off_t cur_leaf_off, LeafNode &cur_leaf, LeafNode &next_leaf, uint32_t key, Row *row)
+void BPlusTree::split_node(off_t cur_leaf_off, LeafNode &cur_leaf, LeafNode &next_leaf, uint32_t key, Row row)
 {
     next_leaf.parent = cur_leaf.parent;
     next_leaf.prev_leaf = cur_leaf_off;
@@ -351,7 +293,7 @@ void BPlusTree::split_node(off_t cur_leaf_off, LeafNode &cur_leaf, LeafNode &nex
         next_next_leaf.prev_leaf = cur_leaf.next_leaf;
         swap_out(&next_next_leaf, next_leaf.next_leaf);
     }
-    std::copy(cur_leaf.records+SIZE_OF_LEAF_LEFT_SPLIT, leaf_end(cur_leaf), leaf_begin(next_leaf));
+    std::copy(cur_leaf.records+SIZE_OF_LEAF_LEFT_SPLIT, cur_leaf.end(), next_leaf.begin());
     cur_leaf.num_of_records = SIZE_OF_LEAF_LEFT_SPLIT;
     next_leaf.num_of_records = SIZE_OF_LEAF_RIGHT_SPLIT;
     if (cur_leaf.records[SIZE_OF_LEAF_LEFT_SPLIT-1].key > key) {
@@ -361,11 +303,11 @@ void BPlusTree::split_node(off_t cur_leaf_off, LeafNode &cur_leaf, LeafNode &nex
     }
 }
 
-void BPlusTree::insert_record_to_leaf(LeafNode &leaf, const uint32_t key, Row *row) {
-    Record *record = find_pos_in_node(leaf, key);
-    std::copy_backward(record, leaf_end(leaf), leaf_end(leaf)+1);
+void BPlusTree::insert_record_to_leaf(LeafNode &leaf, const uint32_t key, Row row) {
+    Record *record = leaf.find_record(key);
+    std::copy_backward(record, leaf.end(), leaf.end()+1);
     record->key = key;
-    row->serialize_row(record->row);
+    row.serialize_row(record->row);
     leaf.num_of_records++;
 }
 
@@ -413,7 +355,7 @@ uint32_t BPlusTree::split_node(off_t cur_interval_off, InternalNode &cur_interva
         next_next_interval.prev_interval = cur_interval.next_interval;
         swap_out(&next_next_interval, next_interval.next_interval);
     }
-    std::copy(cur_interval.children+SIZE_OF_INTERNAL_LEFT_SPLIT, internal_end(cur_interval), internal_begin(next_interval));
+    std::copy(cur_interval.children+SIZE_OF_INTERNAL_LEFT_SPLIT, internal_end(cur_interval), next_interval.begin());
     cur_interval.num_of_index = SIZE_OF_INTERNAL_LEFT_SPLIT;
     next_interval.num_of_index = SIZE_OF_INTERNAL_RIGHT_SPLIT;
     if (cur_interval.children[SIZE_OF_INTERNAL_LEFT_SPLIT-1].key < key) {
@@ -427,7 +369,7 @@ uint32_t BPlusTree::split_node(off_t cur_interval_off, InternalNode &cur_interva
 
 void BPlusTree::insert_index_to_internal(InternalNode &internal, uint32_t key, off_t new_child)
 {
-    Index *index = find_pos_in_node(internal, key);
+    Index *index = internal.find_index(key);
     std::copy_backward(index, internal_end(internal), internal_end(internal)+1);
     index->key = key;
     index->child = (index+1)->child;
@@ -435,16 +377,16 @@ void BPlusTree::insert_index_to_internal(InternalNode &internal, uint32_t key, o
     internal.num_of_index++;
 }
 
-bool BPlusTree::update(const uint32_t key, Row *row)
+bool BPlusTree::update(const uint32_t key, Row row)
 {
     off_t searched_leaf_off = search_leaf(key);
     LeafNode searched_leaf;
     swap_in(&searched_leaf, searched_leaf_off);
-    Record *searched_record = find_pos_in_node(searched_leaf, key);
-    if (searched_record == leaf_end(searched_leaf) || searched_record->key != key) {
+    Record *searched_record = searched_leaf.find_record(key);
+    if (searched_record == searched_leaf.end() || searched_record->key != key) {
         return false;
     } else {
-        row->serialize_row(searched_record->row);
+        row.serialize_row(searched_record->row);
         swap_out(&searched_leaf, searched_leaf_off);
         return true;
     }
@@ -452,7 +394,7 @@ bool BPlusTree::update(const uint32_t key, Row *row)
 
 void BPlusTree::update_parent(InternalNode &parent_node, off_t parent_off, bool is_leaf_update)
 {
-    update_parent(internal_begin(parent_node), internal_end(parent_node), parent_off, is_leaf_update);
+    update_parent(parent_node.begin(), parent_node.end(), parent_off, is_leaf_update);
 }
 
 void BPlusTree::update_parent(Index *begin, Index *end, off_t parent, bool is_leaf_update)
@@ -463,7 +405,6 @@ void BPlusTree::update_parent(Index *begin, Index *end, off_t parent, bool is_le
             swap_in(&node, begin->child);
             node.parent = parent;
             swap_out(&node, begin->child);
-
         } else {
             InternalNode node;
             swap_in(&node, begin->child);
@@ -472,17 +413,4 @@ void BPlusTree::update_parent(Index *begin, Index *end, off_t parent, bool is_le
         }
         begin++;
     }
-}
-
-inline BPlusTree::Index *BPlusTree::internal_begin(InternalNode &node) {
-    return node.children;
-}
-inline BPlusTree::Index *BPlusTree::internal_end(InternalNode &node) {
-    return node.children + node.num_of_index;
-}
-inline BPlusTree::Record *BPlusTree::leaf_begin(LeafNode &node) {
-    return node.records;
-}
-inline BPlusTree::Record *BPlusTree::leaf_end(LeafNode &node) {
-    return node.records + node.num_of_records;
 }

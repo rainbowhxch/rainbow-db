@@ -2,16 +2,13 @@
 #define _PARSER_H_
 
 #include <string>
-#include <iostream>
+
 #include "Statement.h"
 
 using std::string;
 
 class Parser
 {
-#define WORD_HELLO "rainbow-db> "
-#define WORD_BYE "BYE"
-
 public:
     void read_input();
     void print_prompt();
@@ -19,6 +16,8 @@ public:
     Statement *prepare_statement();
 private:
     string input_buffer;
+    static constexpr char WORD_HELLO[] = "rainbow-db> ";
+    static constexpr char WORD_BYE[] = "BYE";
 };
 
 #endif /* _PARSER_H_ */

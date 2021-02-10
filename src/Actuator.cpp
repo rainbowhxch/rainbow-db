@@ -1,5 +1,11 @@
 #include "../include/Actuator.h"
 
+#include <iostream>
+#include <cstdlib>
+
+using std::cout;
+using std::endl;
+
 Actuator::Actuator(string filename)
 {
     b_plus_tree = new BPlusTree(filename);
@@ -15,12 +21,10 @@ HandleResult Actuator::exec_statement(Statement *statement)
         case StatementType::INSERT:
             {
                 return exec_insert(statement);
-                break;
             }
         case StatementType::SELECT:
             {
                 return exec_select(statement);
-                break;
             }
         case StatementType::UPDATE:
             {
@@ -36,7 +40,7 @@ HandleResult Actuator::exec_statement(Statement *statement)
 
 HandleResult Actuator::exec_insert(Statement *statement)
 {
-    uint32_t key = statement->get_row()->get_id();
+    uint32_t key = statement->get_row().get_id();
     bool result = b_plus_tree->insert(key, statement->get_row());
     if (result == false) {
         return HandleResult::DUPLICATE_KEY;
@@ -48,12 +52,13 @@ HandleResult Actuator::exec_insert(Statement *statement)
 
 HandleResult Actuator::exec_select(Statement *statement)
 {
-    uint32_t key = statement->get_row()->get_id();
-    bool result = b_plus_tree->search(key, statement->get_row());
+    uint32_t key = statement->get_row().get_id();
+    Row select_result;
+    bool result = b_plus_tree->search(key, select_result);
     if (result == false) {
         return HandleResult::NO_SUCH_KEY;
     }
-    statement->get_row()->print_row();
+    select_result.print_row();
 
     return HandleResult::SUCCESS;
 }
@@ -61,7 +66,7 @@ HandleResult Actuator::exec_select(Statement *statement)
 
 HandleResult Actuator::exec_update(Statement *statement)
 {
-    uint32_t key = statement->get_row()->get_id();
+    uint32_t key = statement->get_row().get_id();
     bool result = b_plus_tree->update(key, statement->get_row());
     if (result == false) {
         return HandleResult::NO_SUCH_KEY;
@@ -73,7 +78,7 @@ HandleResult Actuator::exec_update(Statement *statement)
 
 HandleResult Actuator::exec_remove(Statement *statement)
 {
-    uint32_t key = statement->get_row()->get_id();
+    uint32_t key = statement->get_row().get_id();
     bool result = b_plus_tree->remove(key);
     if (result == false) {
         return HandleResult::NO_SUCH_KEY;

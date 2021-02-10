@@ -1,13 +1,8 @@
 #ifndef _ACTUATOR_H_
 #define _ACTUATOR_H_
 
-#include <iostream>
-#include <cstdlib>
 #include "Statement.h"
 #include "BPlusTree.h"
-
-using std::cout;
-using std::endl;
 
 enum class HandleResult : unsigned int
 {

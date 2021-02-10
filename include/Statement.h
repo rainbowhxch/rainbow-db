@@ -11,13 +11,14 @@ enum class StatementType : unsigned int
 class Statement
 {
 public:
+    Statement(StatementType type, Row row);
     void set_type(StatementType type);
     StatementType get_type();
-    void set_row(Row *row);
-    Row *get_row();
+    void set_row(Row row);
+    Row get_row();
 private:
     StatementType type;
-    Row *row;
+    Row row;
 };
 
 #endif /* _STATEMENT_H_ */

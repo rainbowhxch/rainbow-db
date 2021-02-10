@@ -1,0 +1,79 @@
+[
+ {
+  "directory": "/home/ch/Code/db",
+  "arguments": [
+   "g++",
+   "-c",
+   "-o",
+   "src/Actuator.o",
+   "src/Actuator.cpp"
+  ],
+  "file": "src/Actuator.cpp"
+ },
+ {
+  "directory": "/home/ch/Code/db",
+  "arguments": [
+   "g++",
+   "-c",
+   "-o",
+   "src/BPlusTree.o",
+   "src/BPlusTree.cpp"
+  ],
+  "file": "src/BPlusTree.cpp"
+ },
+ {
+  "directory": "/home/ch/Code/db",
+  "arguments": [
+   "g++",
+   "-c",
+   "-o",
+   "src/main.o",
+   "src/main.cpp"
+  ],
+  "file": "src/main.cpp"
+ },
+ {
+  "directory": "/home/ch/Code/db",
+  "arguments": [
+   "g++",
+   "-c",
+   "-o",
+   "src/Parser.o",
+   "src/Parser.cpp"
+  ],
+  "file": "src/Parser.cpp"
+ },
+ {
+  "directory": "/home/ch/Code/db",
+  "arguments": [
+   "g++",
+   "-c",
+   "-o",
+   "src/RainbowDB.o",
+   "src/RainbowDB.cpp"
+  ],
+  "file": "src/RainbowDB.cpp"
+ },
+ {
+  "directory": "/home/ch/Code/db",
+  "arguments": [
+   "g++",
+   "-c",
+   "-o",
+   "src/Row.o",
+   "src/Row.cpp"
+  ],
+  "file": "src/Row.cpp"
+ },
+ {
+  "directory": "/home/ch/Code/db",
+  "arguments": [
+   "g++",
+   "-c",
+   "-o",
+   "src/Statement.o",
+   "src/Statement.cpp"
+  ],
+  "file": "src/Statement.cpp"
+ }
+]

@@ -24,7 +24,18 @@ void RainbowDB::db_loop()
                 {
                     break;
                 }
+            case HandleResult::NO_SUCH_KEY:
+                {
+                    std::cout << "no such key" << std::endl;
+                    break;
+                }
+            default:
+                {
+                    std::cout << "wrong command" << std::endl;
+                    break;
+                }
         }
+        delete statement;
     }
     parser->print_bye();
 }
